@@ -1,7 +1,20 @@
 const puppeteer = require("puppeteer");
 const args = require('yargs').argv;
+const { SHA256 } = require('crypto-js');
+const mkdirp = require('mkdirp');
+const fs = require('fs');
 
-url = args.url;
+let url = args.url;
+let url_hash = SHA256(url).toString();
+console.log(url);
+console.log(url_hash);
+
+let parent_dir = `UrlScanData/${url_hash}`;
+
+mkdirp(`${parent_dir}`, function (err) {
+    if (err) console.error(err)
+    else console.log('pow!')
+});
 
 (async () => {
     const browser = await puppeteer.launch();
@@ -14,6 +27,12 @@ url = args.url;
             args: ["--disable-client-side-phishing-detection", "--safebrowsing-disable-download-protection", "--safebrowsing-manual-download-blacklist"]
         })
         .catch(e => (error = e));
-    await page.screenshot({ path: "screenshot.png", fullPage: true });
+    await page.screenshot({ path: `${parent_dir}/screenshot.png`, fullPage: true });
+    let html = await page.content();
+    fs.writeFile(parent_dir + `\\${url_hash}.html`, html, function (err) {
+        if (err) throw err;
+        console.log("success");
+    });
+
     await browser.close();
 })();
