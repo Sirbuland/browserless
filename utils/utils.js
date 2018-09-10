@@ -1,31 +1,5 @@
 const puppeteer = require("puppeteer");
 const fs = require('fs');
-const args = require('yargs').argv;
-const { SHA256 } = require('crypto-js');
-const mkdirp = require('mkdirp');
-const URLParser = require('url-parse');
-
-// let { parsePage } = require('./utils/utils');
-
-let url = args.url;
-let origin = new URLParser(url).origin;
-let url_hash = SHA256(url).toString();
-
-console.log(origin);
-console.log(url_hash);
-
-let urlPath = `UrlScanData/${url_hash}/url`;
-let originPath = `UrlScanData/${url_hash}/domain`;
-
-mkdirp(`${urlPath}`, function (err) {
-    if (err) console.error(err)
-    else console.log('pow!')
-});
-mkdirp(`${originPath}`, function (err) {
-    if (err) console.error(err)
-    else console.log('pow!')
-});
-
 
 async function parsePage(path, url_hash, url) {
     const browser = await puppeteer.launch();
@@ -48,5 +22,4 @@ async function parsePage(path, url_hash, url) {
     await browser.close();
 };
 
-parsePage(urlPath, url_hash, url)
-parsePage(originPath, url_hash, origin)
+module.exports = parsePage;
