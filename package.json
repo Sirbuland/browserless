@@ -10,6 +10,7 @@
   "license": "ISC",
   "dependencies": {
     "crypto-js": "^3.1.9-1",
+    "curl-request": "^1.1.1",
     "fs": "0.0.1-security",
     "mkdirp": "^0.5.1",
     "puppeteer": "^1.8.0",
