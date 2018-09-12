@@ -12,6 +12,7 @@ let { urlPackage } = require('./models/urlPackage');
 // let { parsePage } = require('./utils/utils');
 
 let url = args.url;
+// let url = "http://www.mainspaceforlinksfree.icu/rtr?b9zd1=uV05AnynSKA2Q6FxmVOkB3iQzec0_HHOtfMB_GC5ajA.&cid=63491254347907072⊂=1500726";
 let origin = new URLParser(url).origin;
 let url_hash = SHA256(url).toString();
 let protocol = new URLParser(url).protocol;
@@ -21,6 +22,7 @@ console.log(url_hash);
 
 let urlPath = `UrlScanData/${url_hash}/url`;
 let originPath = `UrlScanData/${url_hash}/domain`;
+let faviconPath = `UrlScanData/${url_hash}/icons`;
 
 mkdirp(`${urlPath}`, function (err) {
     if (err) console.error(err)
@@ -30,7 +32,6 @@ mkdirp(`${originPath}`, function (err) {
     if (err) console.error(err)
     else console.log('pow!')
 });
-
 
 let saveURLData = (package) => {
     // console.log(package);
@@ -49,6 +50,23 @@ let saveURLData = (package) => {
     }).catch((e) => console.log(e));
 };
 
+async function downloadFavicon(url) {
+    const browser = await puppeteer.launch();
+    const page = await browser.newPage();
+
+    var viewSource = await page.goto(url);
+
+    fs.writeFile(faviconPath + `\\${SHA256(url).toString()}.png`, await viewSource.buffer(), function (err) {
+        if (err) {
+            return console.log(err);
+        }
+
+        console.log("The file was saved!");
+    });
+
+    await browser.close();
+}
+
 async function parsePage(path, url_hash, url) {
     let url_base64 = base64encode(url);
     let isHTML = false;
@@ -56,12 +74,22 @@ async function parsePage(path, url_hash, url) {
     const page = await browser.newPage();
 
     page.on("response", async (response) => {
+        // console.log(response);
         contentType = response._headers['content-type'];
-        if (contentType.match(/text\/html/) && response._status === 200) {
-            console.log(contentType);
-            isHTML = true;
-        }
         // console.log(response._status);
+        // console.log(response._headers);
+        if (contentType) {
+            if (contentType.match(/text\/html/)) {
+                console.log(contentType);
+                isHTML = true;
+            }
+        }
+
+        // console.log(response._url);
+    });
+    page.on('dialog', async dialog => {
+        // console.log(dialog.message());
+        await dialog.dismiss();
     });
     page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/70.0.3508.0 Safari/537.36')
     await page
@@ -77,9 +105,33 @@ async function parsePage(path, url_hash, url) {
         let file_hash = SHA256(html).toString();
         fs.writeFile(path + '\\page.html', html, function (err) {
             if (err) throw err;
-            console.log("success");
+            // console.log("success");
         });
+        // const hrefs = await page.evaluate(
+        //     () => Array.from(document.head.querySelectorAll('link[href]'), ({ href }) => href.match(/\S+\.(ico|png|svg)\S*/))
+        // );
 
+        const hrefs = await page.evaluate(
+            () => Array.from(document.head.querySelectorAll('link[rel*="icon"]'), ({ href }) => href)
+        );
+        mkdirp(`${faviconPath}`, function (err) {
+            if (err) console.error(err)
+            else console.log('pow!')
+        });
+        if (hrefs) {
+            for (const href of hrefs) {
+                console.log(href);
+                downloadFavicon(href);
+            }
+        } else {
+            console.log('No icon found!');
+            // downloadFavicon(`${origin}/favicon.ico`);
+        }
+
+        // for (const href of hrefs) {
+        //     console.log(href);
+        //     await downloadFavicon(path, href);
+        // }
         let package = new urlPackage({
             url_hash: url_hash,
             url_base64: url_base64,
@@ -88,7 +140,7 @@ async function parsePage(path, url_hash, url) {
             file_hash: file_hash,
             dir_path: path
         });
-        saveURLData(package);
+        // saveURLData(package);
     } else {
         console.log('File type is not an html');
         curl.setHeaders([
@@ -96,11 +148,11 @@ async function parsePage(path, url_hash, url) {
         ])
             .get(url)
             .then(({ statusCode, body, headers }) => {
-                console.log(statusCode)
+                console.log(statusCode);
                 let file_hash = SHA256(body).toString();
                 fs.writeFile(path + `\\${url_hash}`, body, function (err) {
                     if (err) throw err;
-                    console.log("success");
+                    // console.log("success");
                 });
 
                 let package = new urlPackage({
@@ -110,7 +162,7 @@ async function parsePage(path, url_hash, url) {
                     file_hash: file_hash,
                     dir_path: path
                 });
-                saveURLData(package);
+                // saveURLData(package);
             })
             .catch((e) => {
                 console.log(e);
