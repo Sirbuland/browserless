@@ -4,11 +4,14 @@ const { base64encode, base64decode } = require('nodejs-base64');
 const curl = new (require('curl-request'))();
 const { SHA256 } = require('crypto-js');
 const mkdirp = require('mkdirp');
+const URLParser = require('url-parse');
+const { promisify } = require('util');
+var Curl = require('node-libcurl').Curl;
 
 let { urlPackage } = require('../models/urlPackage');
 
 
-let saveURLData = (package) => {
+async function saveURLData(package) {
     // console.log(package);
     let newPackage = new urlPackage({
         url_hash: package.url_hash,
@@ -19,39 +22,119 @@ let saveURLData = (package) => {
         file_hash: package.file_hash,
         dir_path: package.dir_path
     });
-
-    newPackage.save().then((package) => {
-        console.log('Package saved: ', package);
-    }).catch((e) => console.log(e));
+    package = await newPackage.save();
+    return package
+    // newPackage.save().then((package) => {
+    //     // console.log('Package saved: ', package);
+    // }).catch((e) => console.log(e.message));
 };
 
 async function downloadFavicon(url, faviconPath) {
     const browser = await puppeteer.launch();
     const page = await browser.newPage();
-
-    var viewSource = await page.goto(url);
-
-    fs.writeFile(faviconPath + `\\${SHA256(url).toString()}.png`, await viewSource.buffer(), function (err) {
-        if (err) {
-            return console.log(err);
+    let isHTML = false;
+    page.on("response", async (response) => {
+        contentType = response._headers['content-type'];
+        // console.log(contentType, response.url);
+        if (contentType) {
+            if (contentType.match(/text\/html/)) {
+                console.log(response._status);
+                isHTML = true;
+            }
         }
+    });
+    let viewSource = await page.goto(url);
 
-        console.log("The file was saved!");
+    if (!isHTML) {
+        console.log('Favicon URL: ', url);
+        mkdirp(`${faviconPath}`, function (err) {
+            if (err) console.error(err)
+            // console.log(`Icons director created at: ${faviconPath}`)
+        });
+        fs.writeFile(faviconPath + `\\${SHA256(url).toString()}.png`, await viewSource.buffer(), function (err) {
+            if (err) {
+                return console.log(err);
+            }
+            console.log("The file was saved!");
+        });
+    }
+    await browser.close();
+    return new Promise((resolve, reject) => {
+        resolve('Done with favicon');
+    });
+}
+
+async function handleCURL(path, url_hash, url_base64, url) {
+    var curl = new Curl();
+
+    curl.setOpt(Curl.option.URL, url);
+    curl.setOpt('FOLLOWLOCATION', false);
+
+    curl.on('end', async function (statusCode, body, headers) {
+
+        console.info(statusCode);
+        console.info('---');
+        console.info(body.length);
+        await promisify(fs.writeFile)(path + `\\${url_hash}`, body);
+        console.info('---');
+        console.info(headers);
+        console.info('---');
+        console.info(this.getInfo(Curl.info.TOTAL_TIME));
+
+        this.close();
     });
 
-    await browser.close();
+    curl.on('error', function (err, curlErrorCode) {
+
+        console.error(err.message);
+        console.error('---');
+        console.error(curlErrorCode);
+
+        this.close();
+
+    });
+
+    await curl.perform();
+    // try {
+
+    //     console.log('File type is not an html');
+    //     const { statusCode, body, headers } = await curl.setHeaders(['user-agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/70.0.3508.0 Safari/537.36']).get(url);
+    //     let file_hash = SHA256(body).toString();
+    //     // if (headers['content-type'].match(/text\/html/)) {
+    //     //     return new Promise((resolve, reject) => {
+    //     //         resolve(0);
+    //     //     })
+    //     // }
+    //     await promisify(fs.writeFile)(path + `\\${url_hash}`, body);
+
+    //     let package = new urlPackage({
+    //         url_hash: url_hash,
+    //         url_base64: url_base64,
+    //         file_type: 'text/html',
+    //         file_hash: file_hash,
+    //         dir_path: path
+    //     });
+
+    //     return await saveURLData(package);
+    // } catch (err) {
+    //     console.log('Curl catch block', err.message);
+    // }
 }
 
 async function parsePage(path, faviconPath, url_hash, url, origin) {
     let url_base64 = base64encode(url);
     let isHTML = false;
+    page_res = false;
+    let result = '';
     const browser = await puppeteer.launch();
     const page = await browser.newPage();
 
     page.on("response", async (response) => {
         // console.log(response);
+        page_res = true;
+        // console.log('Response found!');
         contentType = response._headers['content-type'];
-        // console.log('STATUS ', response._status);
+        console.log(contentType);
         // console.log(response._headers);
         if (contentType) {
             if (contentType.match(/text\/html/)) {
@@ -59,12 +142,22 @@ async function parsePage(path, faviconPath, url_hash, url, origin) {
                 isHTML = true;
             }
         }
-
+        // console.log('No response found!');
+        // result = await handleCURL(path, url_hash, url_base64, url);
         // console.log(response._url);
     });
     page.on('dialog', async dialog => {
         // console.log(dialog.message());
-        await dialog.dismiss();
+        try {
+
+            await dialog.dismiss();
+
+        } catch (err) {
+
+            console.log('Error on dialog event: ', err.message);
+
+        }
+
     });
     page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/70.0.3508.0 Safari/537.36')
     await page
@@ -73,6 +166,21 @@ async function parsePage(path, faviconPath, url_hash, url, origin) {
             args: ["--disable-client-side-phishing-detection", "--safebrowsing-disable-download-protection", "--safebrowsing-manual-download-blacklist"]
         })
         .catch(e => (error = e));
+
+    // if (page_res === false) {
+    //     result = await handleCURL(path, url_hash, url_base64, url).catch((e) => {
+    //         console.log('Curl catch block', e.message);
+    //     });
+    //     console.log('Result is: ', result);
+    //     if (result === 0) {
+    //         isHTML = true;
+    //     } else if (result === undefined) {
+    //         result = await handleCURL(path, url_hash, url_base64, url).catch((e) => {
+    //             console.log('Curl catch block', e.message);
+    //         });
+    //         console.log('Result is: ', result);
+    //     }
+    // }
     if (isHTML) {
         await page.screenshot({ path: `${path}/screenshot.png`, fullPage: true });
         let page_title = await page.title();
@@ -89,18 +197,15 @@ async function parsePage(path, faviconPath, url_hash, url, origin) {
         const hrefs = await page.evaluate(
             () => Array.from(document.head.querySelectorAll('link[rel*="icon"]'), ({ href }) => href)
         );
-        mkdirp(`${faviconPath}`, function (err) {
-            if (err) console.error(err)
-            // else console.log('pow!')
-        });
+
         if (hrefs.length !== 0) {
             console.log('hrefs', hrefs);
             for (const href of hrefs) {
-                downloadFavicon(href, faviconPath);
+                await downloadFavicon(href, faviconPath);
             }
         } else {
             console.log('No icon found!');
-            downloadFavicon(`${origin}/favicon.ico`, faviconPath);
+            await downloadFavicon(`${origin}/favicon.ico`, faviconPath);
         }
 
         // for (const href of hrefs) {
@@ -115,39 +220,45 @@ async function parsePage(path, faviconPath, url_hash, url, origin) {
             file_hash: file_hash,
             dir_path: path
         });
-        // saveURLData(package);
+        result = await saveURLData(package);
     } else {
-        console.log('File type is not an html');
-        curl.setHeaders([
-            'user-agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/70.0.3508.0 Safari/537.36'
-        ])
-            .get(url)
-            .then(({ statusCode, body, headers }) => {
-                // console.log(url, statusCode);
-                let file_hash = SHA256(body).toString();
-                fs.writeFile(path + `\\${url_hash}`, body, function (err) {
-                    if (err) throw err;
-                    // console.log("success");
-                });
-
-                let package = new urlPackage({
-                    url_hash: url_hash,
-                    url_base64: url_base64,
-                    file_type: 'text/html',
-                    file_hash: file_hash,
-                    dir_path: path
-                });
-                // saveURLData(package);
-            })
-            .catch((e) => {
-                console.log('catch block', e.message);
-            });
-
-
+        result = await handleCURL(path, url_hash, url_base64, url).catch((e) => {
+            console.log('Curl catch block', e.message);
+        });
     }
-
-
     await browser.close();
+    return result;
 };
 
 module.exports.parsePage = parsePage;
+
+
+
+
+//////////
+
+// console.log('File type is not an html');
+// curl.setHeaders([
+//     'user-agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/70.0.3508.0 Safari/537.36'
+// ])
+//     .get(url)
+//     .then(({ statusCode, body, headers }) => {
+//         // console.log(url, statusCode);
+//         let file_hash = SHA256(body).toString();
+//         fs.writeFile(path + `\\${url_hash}`, body, function (err) {
+//             if (err) throw err;
+//             // console.log("success");
+//         });
+
+//         let package = new urlPackage({
+//             url_hash: url_hash,
+//             url_base64: url_base64,
+//             file_type: 'text/html',
+//             file_hash: file_hash,
+//             dir_path: path
+//         });
+//         saveURLData(package);
+//     })
+//     .catch((e) => {
+//         console.log('Curl catch block', e.message);
+//     });
