@@ -24,7 +24,12 @@ app.post('/url', async (req, res) => {
     let url = req.body.url
     console.log(url);
     result = await urlHandler(url);
-    res.send(result);
+    console.log('RESULT is: ', result);
+    if (result === 0) {
+        res.sendStatus(200);
+    } else {
+        res.sendStatus(404);
+    }
 })
 
 const dburl = `mongodb://localhost:27017/ChromeHeadless`;
@@ -66,11 +71,21 @@ async function urlHandler(url) {
         // else console.log(`Domain director created at: ${originPath}`)
     });
 
-    url_res = await parsePage(urlPath, faviconPath, url_hash, url, origin)
-    domain_res = await parsePage(originPath, faviconPath, url_hash, origin, origin);
-
-    console.log('Browser Closed Successfully.');
-    return (url_res, domain_res);
+    let STATUS_U = 0;
+    let STATUS_D = 0;
+    STATUS_U = await parsePage(urlPath, faviconPath, url_hash, url, origin, STATUS_U)
+    STATUS_D = await parsePage(originPath, faviconPath, url_hash, origin, origin, STATUS_D);
+    console.log(`Browser Closed Successfully. Domain Status: ${STATUS_D} URL Status: ${STATUS_U}`);
+    if (STATUS_D === 1 && STATUS_U === 1) {
+        return new Promise((resolve, reject) => {
+            resolve(1);
+        });
+    } else {
+        return new Promise((resolve, reject) => {
+            resolve(0);
+        });
+    }
+    // return (STATUS_U);
 
     // setTimeout(() => {
     //     response = await parsePage(originPath, faviconPath, url_hash, origin, origin);

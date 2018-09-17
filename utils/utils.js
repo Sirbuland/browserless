@@ -75,7 +75,13 @@ async function handleCURL(path, url_hash, url_base64, url) {
         console.info(statusCode);
         console.info('---');
         console.info(body.length);
-        await promisify(fs.writeFile)(path + `\\${url_hash}`, body);
+        if (statusCode !== 403 || statusCode !== 404 || statusCode !== 500 || statusCode !== 501 || statusCode !== 502 || statusCode !== 503 || statusCode !== 504) {
+            await promisify(fs.writeFile)(path + `\\${url_hash}`, body);
+        } else {
+            return new Promise((resolve, reject) => {
+                resolve(1);
+            })
+        }
         console.info('---');
         console.info(headers);
         console.info('---');
@@ -95,6 +101,9 @@ async function handleCURL(path, url_hash, url_base64, url) {
     });
 
     await curl.perform();
+    return new Promise((resolve, reject) => {
+        resolve(0);
+    })
     // try {
 
     //     console.log('File type is not an html');
@@ -121,7 +130,7 @@ async function handleCURL(path, url_hash, url_base64, url) {
     // }
 }
 
-async function parsePage(path, faviconPath, url_hash, url, origin) {
+async function parsePage(path, faviconPath, url_hash, url, origin, STATUS) {
     let url_base64 = base64encode(url);
     let isHTML = false;
     page_res = false;
@@ -134,8 +143,14 @@ async function parsePage(path, faviconPath, url_hash, url, origin) {
         page_res = true;
         // console.log('Response found!');
         contentType = response._headers['content-type'];
-        console.log(contentType);
-        // console.log(response._headers);
+        // console.log(contentType);
+        console.log(response._status, response._url);
+        if (response._status === 403 || response._status === 404 || response._status === 500 || response._status === 501 || response._status === 502 || response._status === 503 || response._status === 504 && response._url === url) {
+            STATUS = 1;
+            console.log('STATUS with URL ', STATUS, response._url);
+        } else {
+            STATUS = 0;
+        }
         if (contentType) {
             if (contentType.match(/text\/html/)) {
                 console.log(response._status, contentType, url);
@@ -181,6 +196,12 @@ async function parsePage(path, faviconPath, url_hash, url, origin) {
     //         console.log('Result is: ', result);
     //     }
     // }
+
+    if (STATUS === 1) {
+        return new Promise((resolve, reject) => {
+            resolve(STATUS);
+        });
+    }
     if (isHTML) {
         await page.screenshot({ path: `${path}/screenshot.png`, fullPage: true });
         let page_title = await page.title();
@@ -212,22 +233,26 @@ async function parsePage(path, faviconPath, url_hash, url, origin) {
         //     console.log(href);
         //     await downloadFavicon(path, href);
         // }
-        let package = new urlPackage({
-            url_hash: url_hash,
-            url_base64: url_base64,
-            page_title: page_title,
-            file_type: 'text/html',
-            file_hash: file_hash,
-            dir_path: path
-        });
-        result = await saveURLData(package);
+        // let package = new urlPackage({
+        //     url_hash: url_hash,
+        //     url_base64: url_base64,
+        //     page_title: page_title,
+        //     file_type: 'text/html',
+        //     file_hash: file_hash,
+        //     dir_path: path
+        // });
+        // result = await saveURLData(package);
+
     } else {
-        result = await handleCURL(path, url_hash, url_base64, url).catch((e) => {
+        STATUS = await handleCURL(path, url_hash, url_base64, url).catch((e) => {
             console.log('Curl catch block', e.message);
         });
     }
     await browser.close();
-    return result;
+    // console.log('STATUS', STATUS);
+    return new Promise((resolve, reject) => {
+        resolve(STATUS);
+    });
 };
 
 module.exports.parsePage = parsePage;
