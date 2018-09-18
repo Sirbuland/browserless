@@ -1,15 +1,72 @@
 const puppeteer = require("puppeteer");
 const fs = require('fs');
 const { base64encode, base64decode } = require('nodejs-base64');
-const curl = new (require('curl-request'))();
+// const curl = new (require('curl-request'))();
 const { SHA256 } = require('crypto-js');
 const mkdirp = require('mkdirp');
 const URLParser = require('url-parse');
 const { promisify } = require('util');
 var Curl = require('node-libcurl').Curl;
+var zipper = require('zip-local');
 
 let { urlPackage } = require('../models/urlPackage');
 
+PROTOCOL = 'https';
+SERVERIP = '10.0.8.79';
+
+async function urlHandler(url) {
+    let origin = '';
+    let protocol = '';
+    if (!url.match(/http|https/)) {
+        origin = new URLParser('http://' + url).origin;
+        console.log(origin);
+        protocol = 'http://';
+    } else {
+        origin = new URLParser(url).origin;
+        protocol = new URLParser(url).protocol;
+    }
+
+    let url_hash = SHA256(url).toString();
+    let user_agent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/70.0.3508.0 Safari/537.36';
+
+    let package = `UrlScanData/${url_hash}`;
+    let packageZIP = `${package}.zip`;
+    let urlPath = `${package}/url`;
+    let originPath = `${package}/domain`;
+    let faviconPath = `${package}/icons`;
+
+    mkdirp(`${urlPath}`, function (err) {
+        if (err) console.error(err)
+        // else console.log(`URL director created at: ${urlPath}`);
+    });
+    mkdirp(`${originPath}`, function (err) {
+        if (err) console.error(err)
+        // else console.log(`Domain director created at: ${originPath}`)
+    });
+
+    let STATUS_U = 0;
+    let STATUS_D = 0;
+    STATUS_U = await parsePage(urlPath, faviconPath, url_hash, url, origin, STATUS_U, user_agent, protocol)
+    STATUS_D = await parsePage(originPath, faviconPath, url_hash, origin, origin, STATUS_D, user_agent, protocol);
+    console.log(`Browser Closed Successfully. Domain Status: ${STATUS_D} URL Status: ${STATUS_U}`);
+    if (STATUS_D === 1 && STATUS_U === 1) {
+        return new Promise((resolve, reject) => {
+            resolve(1);
+        });
+    } else {
+        zipper.sync.zip(`${package}/`).compress().save(`${packageZIP}`);
+        uploadZIP(url_hash, user_agent, packageZIP);
+        return new Promise((resolve, reject) => {
+            resolve(0);
+        });
+    }
+    // return (STATUS_U);
+
+    // setTimeout(() => {
+    //     response = await parsePage(originPath, faviconPath, url_hash, origin, origin);
+    //     return response;
+    // }, 5000);
+}
 
 async function saveURLData(package) {
     // console.log(package);
@@ -28,6 +85,21 @@ async function saveURLData(package) {
     //     // console.log('Package saved: ', package);
     // }).catch((e) => console.log(e.message));
 };
+
+const getJob = () => {
+
+}
+
+const uploadZIP = (url_hash, user_agent, packageZIP) => {
+    let user_agent_hash = SHA256(user_agent).toString();
+    //upload status(success :=1, failiure :=-10)
+    APIPACKAGE = '{1}://{0}/worker/uploadstatus/'.format(SERVERIP, PROTOCOL)
+    post_data = {
+        'url_hash': url_hash, 'user_agent_hash': user_agent_hash, 'status': 1,
+        'user_agent': user_agent, 'uname': 'snx', 'password': 'top4glory'
+    }
+    response = requests.post(APIPACKAGE, files = files, data = post_data, verify = False)
+}
 
 async function downloadFavicon(url, faviconPath) {
     const browser = await puppeteer.launch();
@@ -130,11 +202,20 @@ async function handleCURL(path, url_hash, url_base64, url) {
     // }
 }
 
-async function parsePage(path, faviconPath, url_hash, url, origin, STATUS) {
+async function parsePage(path, faviconPath, url_hash, url, origin, STATUS, user_agent, protocol) {
     let url_base64 = base64encode(url);
     let isHTML = false;
-    page_res = false;
+    let page_res = false;
     let result = '';
+    let page_title = '';
+    let html = '';
+    let file_hash = '';
+
+    json_data = {
+        'page_title': page_title,
+        'protocol': protocol
+    }
+
     const browser = await puppeteer.launch();
     const page = await browser.newPage();
 
@@ -144,12 +225,13 @@ async function parsePage(path, faviconPath, url_hash, url, origin, STATUS) {
         // console.log('Response found!');
         contentType = response._headers['content-type'];
         // console.log(contentType);
-        console.log(response._status, response._url);
-        if (response._status === 403 || response._status === 404 || response._status === 500 || response._status === 501 || response._status === 502 || response._status === 503 || response._status === 504 && response._url === url) {
+        // console.log(response._status, response._url);
+        if ((response._status === 403 || response._status === 404 || response._status === 500 || response._status === 501 || response._status === 502 || response._status === 503 || response._status === 504) && response._url === url) {
             STATUS = 1;
-            console.log('STATUS with URL ', STATUS, response._url);
+            console.log('STATUS with URL ', STATUS, response._status, contentType, response._url);
         } else {
             STATUS = 0;
+            // console.log('STATUS with URL ', STATUS, contentType, response._url);
         }
         if (contentType) {
             if (contentType.match(/text\/html/)) {
@@ -174,13 +256,16 @@ async function parsePage(path, faviconPath, url_hash, url, origin, STATUS) {
         }
 
     });
-    page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/70.0.3508.0 Safari/537.36')
+    page.setUserAgent(user_agent)
     await page
         .goto(url, {
             waitUntil: "load",
             args: ["--disable-client-side-phishing-detection", "--safebrowsing-disable-download-protection", "--safebrowsing-manual-download-blacklist"]
-        })
-        .catch(e => (error = e));
+        }, 9000)
+        .catch(e => {
+            (error = console.log('Error: ', e.message));
+            STATUS = 1;
+        });
 
     // if (page_res === false) {
     //     result = await handleCURL(path, url_hash, url_base64, url).catch((e) => {
@@ -198,15 +283,16 @@ async function parsePage(path, faviconPath, url_hash, url, origin, STATUS) {
     // }
 
     if (STATUS === 1) {
+        await browser.close();
         return new Promise((resolve, reject) => {
             resolve(STATUS);
         });
     }
     if (isHTML) {
         await page.screenshot({ path: `${path}/screenshot.png`, fullPage: true });
-        let page_title = await page.title();
-        let html = await page.content();
-        let file_hash = SHA256(html).toString();
+        page_title = await page.title();
+        html = await page.content();
+        file_hash = SHA256(html).toString();
         fs.writeFile(path + '\\page.html', html, function (err) {
             if (err) throw err;
             // console.log("success");
@@ -256,6 +342,8 @@ async function parsePage(path, faviconPath, url_hash, url, origin, STATUS) {
 };
 
 module.exports.parsePage = parsePage;
+module.exports.uploadZIP = uploadZIP;
+module.exports.urlHandler = urlHandler;
 
 
 
