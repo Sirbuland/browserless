@@ -234,11 +234,6 @@ async function parsePage(path, faviconPath, url_hash, url, origin, STATUS, user_
     let html = '';
     let file_hash = '';
 
-    json_data = {
-        'url_base64': url_base64,
-        'page_title': page_title,
-        'protocol': protocol
-    }
 
     const browser = await puppeteer.launch();
     const page = await browser.newPage();
@@ -322,6 +317,11 @@ async function parsePage(path, faviconPath, url_hash, url, origin, STATUS, user_
             if (err) throw err;
             // console.log("success");
         });
+        let json_data = {
+            'url_base64': url_base64,
+            'page_title': page_title,
+            'protocol': protocol
+        }
         fs.writeFile(path + '\/data.json', JSON.stringify(json_data), function (err) {
             if (err) throw err;
             // console.log("success");
