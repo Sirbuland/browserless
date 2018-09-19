@@ -4,11 +4,14 @@ const request = require('request').defaults({strictSSL: false});
 const { base64encode, base64decode } = require('nodejs-base64');
 // const curl = new (require('curl-request'))();
 const { SHA256 } = require('crypto-js');
+var md5 = require('md5');
 const mkdirp = require('mkdirp');
 const URLParser = require('url-parse');
 const { promisify } = require('util');
-var Curl = require('node-libcurl').Curl;
-var zipper = require('zip-local');
+const Curl = require('node-libcurl').Curl;
+const zipper = require('zip-local');
+const spawn = require("child_process").spawn; 
+
 
 
 let { urlPackage } = require('../models/urlPackage');
@@ -25,14 +28,15 @@ const getURL = () => {
       }
       let res_body = JSON.parse(body);
       let url = res_body.url;
-      console.log(url);
+      let user_agent = res_body.user_agent;
+      console.log(url, user_agent);
       if (url !== undefined) {
-        urlHandler(url);
+        urlHandler(url, user_agent);
       }
     });
   }
 
-async function urlHandler(url) {
+async function urlHandler(url, user_agent) {
     let origin = '';
     let protocol = '';
     if (!url.match(/http|https/)) {
@@ -44,14 +48,15 @@ async function urlHandler(url) {
         protocol = new URLParser(url).protocol;
     }
 
-    let url_hash = SHA256(url).toString();
-    let user_agent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/70.0.3508.0 Safari/537.36';
+    let url_hash = md5(url);
+    // let user_agent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/70.0.3508.0 Safari/537.36';
 
     let package = `UrlScanData/${url_hash}`;
     let packageZIP = `${package}.zip`;
     let urlPath = `${package}/url`;
     let originPath = `${package}/domain`;
-    let faviconPath = `${package}/icons`;
+    let originFaviconPath = `${originPath}/icons`;
+    let urlFaviconPath = `${urlPath}/icons`;
 
     mkdirp(`${urlPath}`, function (err) {
         if (err) console.error(err)
@@ -65,23 +70,23 @@ async function urlHandler(url) {
     let STATUS_U = 0;
     let STATUS_D = 0;
     if (url === origin) {
-        STATUS_D = await parsePage(originPath, faviconPath, url_hash, origin, origin, STATUS_D, user_agent, protocol);
+        STATUS_D = await parsePage(originPath, originFaviconPath, url_hash, origin, origin, STATUS_D, user_agent, protocol);
         STATUS_U = STATUS_D;
     } else {
-        STATUS_U = await parsePage(urlPath, faviconPath, url_hash, url, origin, STATUS_U, user_agent, protocol)
-        STATUS_D = await parsePage(originPath, faviconPath, url_hash, origin, origin, STATUS_D, user_agent, protocol);
+        STATUS_U = await parsePage(urlPath, urlFaviconPath, url_hash, url, origin, STATUS_U, user_agent, protocol)
+        STATUS_D = await parsePage(originPath, originFaviconPath, url_hash, origin, origin, STATUS_D, user_agent, protocol);
     }
 
     console.log(`Browser Closed Successfully. Domain Status: ${STATUS_D} URL Status: ${STATUS_U}`);
     if (STATUS_D === 1 && STATUS_U === 1) {
-        getURL();
+        // getURL();
         return new Promise((resolve, reject) => {
             resolve(1);
         });
     } else {
         zipper.sync.zip(`${package}/`).compress().save(`${packageZIP}`);
-        // uploadZIP(url_hash, user_agent, packageZIP);
-        getURL();
+        uploadZIP(url_hash, user_agent, packageZIP);
+        // getURL();
         return new Promise((resolve, reject) => {
             resolve(0);
         });
@@ -114,14 +119,72 @@ async function saveURLData(package) {
 
 
 const uploadZIP = (url_hash, user_agent, packageZIP) => {
-    let user_agent_hash = SHA256(user_agent).toString();
+    let user_agent_hash = md5(user_agent);
+    packageZIP = `/home/dingle/browserless/${packageZIP}`
+    console.log(user_agent_hash)
     //upload status(success :=1, failiure :=-10)
-    APIPACKAGE = '{1}://{0}/worker/uploadstatus/'.format(SERVERIP, PROTOCOL)
-    post_data = {
+    APIPACKAGE = `${PROTOCOL}://${SERVERIP}/worker/uploadstatus/`
+    let post_data = {
         'url_hash': url_hash, 'user_agent_hash': user_agent_hash, 'status': 1,
         'user_agent': user_agent, 'uname': 'snx', 'password': 'top4glory'
     }
-    response = requests.post(APIPACKAGE, files = files, data = post_data, verify = False)
+    // response = requests.post(APIPACKAGE, files = files, data = post_data, verify = False)
+
+    console.log('uploading...');
+    let process = spawn(`'python ./upload.py "${url_hash}" "${user_agent}" "${user_agent_hash}" "${packageZIP}" >> log.txt'`); 
+    // let process = spawn('python',["./upload.py", url_hash, user_agent, user_agent_hash, packageZIP] ); 
+    process.stdout.on('data', function(data) { 
+        console.log('uploaded', data.toString()); 
+    } ) 
+    // let formData = {
+    //     url_hash: url_hash,
+    //     user_agent_hash: user_agent_hash,
+    //     status: 1,
+    //     user_agent: user_agent,
+    //     uname: 'snx',
+    //     password: 'top4glory',
+    //     };
+    // request.post({url:APIPACKAGE, files: fs.createReadStream(packageZIP), data: post_data}, function(err, httpResponse, body) {        
+    //     if (err) {       
+    //     return console.error('upload failed:', err);       
+    //     }       
+    //     console.log('Upload successful!  Server responded with:', body);        
+    // });
+
+    // request.post({
+    //     url: APIPACKAGE,
+    //     formData: {
+    //         file: fs.createReadStream(packageZIP),
+    //         filetype: 'zip',
+    //         url_hash: url_hash, 
+    //         user_agent_hash: user_agent_hash, 
+    //         status: 1,
+    //         user_agent: user_agent, 
+    //         uname: 'snx', 
+    //         password: 'top4glory',
+    //     },
+    // }, function(error, response, body) {
+    //     console.log(body);
+    // });
+
+
+    // request({
+    //     method: 'POST',
+    //     uri: APIPACKAGE,
+    //     multipart: [
+    //         {
+    //             'url_hash': url_hash, 'user_agent_hash': user_agent_hash, 'status': 1,
+    //             'user_agent': user_agent, 'uname': 'snx', 'password': 'top4glory'
+    //         },
+    //       { body: fs.createReadStream(packageZIP) }
+    //     ],
+    //   },
+    //   function (error, response, body) {
+    //     if (error) {
+    //       return console.error('upload failed:', error);
+    //     }
+    //     console.log('Upload successful!  Server responded with:', body);
+    //   })
 }
 
 async function downloadFavicon(url, faviconPath) {
@@ -146,7 +209,7 @@ async function downloadFavicon(url, faviconPath) {
             if (err) console.error(err)
             // console.log(`Icons director created at: ${faviconPath}`)
         });
-        fs.writeFile(faviconPath + `\/${SHA256(url).toString()}`, await viewSource.buffer(), function (err) {
+        fs.writeFile(faviconPath + `\/${md5(url)}`, await viewSource.buffer(), function (err) {
             if (err) {
                 return console.log(err);
             }
@@ -311,7 +374,7 @@ async function parsePage(path, faviconPath, url_hash, url, origin, STATUS, user_
         await page.screenshot({ path: `${path}/screenshot.png`, fullPage: true });
         page_title = await page.title();
         html = await page.content();
-        file_hash = SHA256(html).toString();
+        file_hash = md5(html).toString();
         console.log(path);
         fs.writeFile(path + '\/page.html', html, function (err) {
             if (err) throw err;

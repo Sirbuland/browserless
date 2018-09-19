@@ -13,13 +13,15 @@ let { getURL, urlHandler } = require('./utils/utils');
 
 let counter = 1;
 
-while (counter < 6) {
-  getURL();
-  // console.log(counter);
-  counter++;
-}
+// while (counter < 3) {
+//   getURL();
+//   // console.log(counter);
+//   counter++;
+// }
 
-// urlHandler('https://xnet.slashnext.net/advisory_portal/');
+
+getURL();
+// urlHandler('http://meridavai.net', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/70.0.3508.0 Safari/537.36');
 
 
 
