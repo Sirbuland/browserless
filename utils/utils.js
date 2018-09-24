@@ -11,6 +11,7 @@ const { promisify } = require('util');
 const Curl = require('node-libcurl').Curl;
 const zipper = require('zip-local');
 const spawn = require("child_process").spawn; 
+const {PythonShell} = require('python-shell');
 
 
 
@@ -20,6 +21,7 @@ PROTOCOL = 'https';
 SERVERIP = '10.0.8.79';
 APIJOB = `${PROTOCOL}://${SERVERIP}/worker/getjob/`
 post_data = {'uname': 'snx', 'password': 'top4glory'}
+APIPACKAGE = `${PROTOCOL}://${SERVERIP}/worker/uploadstatus/`
 
 const getURL = () => {
     request.post({url:APIJOB, formData: post_data}, function optionalCallback(err, httpResponse, body) {
@@ -51,7 +53,7 @@ async function urlHandler(url, user_agent) {
     let url_hash = md5(url);
     // let user_agent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/70.0.3508.0 Safari/537.36';
 
-    let package = `UrlScanData/${url_hash}`;
+    let package = __dirname + `/UrlScanData/${url_hash}`;
     let packageZIP = `${package}.zip`;
     let urlPath = `${package}/url`;
     let originPath = `${package}/domain`;
@@ -79,14 +81,15 @@ async function urlHandler(url, user_agent) {
 
     console.log(`Browser Closed Successfully. Domain Status: ${STATUS_D} URL Status: ${STATUS_U}`);
     if (STATUS_D === 1 && STATUS_U === 1) {
-        // getURL();
+        uploadData(url_hash, user_agent);
+        getURL();
         return new Promise((resolve, reject) => {
             resolve(1);
         });
     } else {
         zipper.sync.zip(`${package}/`).compress().save(`${packageZIP}`);
         uploadZIP(url_hash, user_agent, packageZIP);
-        // getURL();
+        getURL();
         return new Promise((resolve, reject) => {
             resolve(0);
         });
@@ -99,43 +102,45 @@ async function urlHandler(url, user_agent) {
     // }, 5000);
 }
 
-async function saveURLData(package) {
-    // console.log(package);
-    let newPackage = new urlPackage({
-        url_hash: package.url_hash,
-        url_base64: package.url_base64,
-        page_title: package.page_title,
-        file_type: package.file_type,
-        filename: package.filename,
-        file_hash: package.file_hash,
-        dir_path: package.dir_path
+const uploadData = (url_hash, user_agent) => {
+    let user_agent_hash = md5(user_agent);
+
+    let options = {
+        mode: 'text',
+        pythonPath: '/usr/bin/python',
+        pythonOptions: ['-u'], // get print results in real-time
+        scriptPath: __dirname + '',
+        args: [url_hash, user_agent, user_agent_hash]
+    };
+        
+    PythonShell.run('upload.py', options, function (err, results) {
+        if (err) throw err;
+        // results is an array consisting of messages collected during execution
+        console.log('results: %j', results);
     });
-    package = await newPackage.save();
-    return package
-    // newPackage.save().then((package) => {
-    //     // console.log('Package saved: ', package);
-    // }).catch((e) => console.log(e.message));
-};
+}
 
 
 const uploadZIP = (url_hash, user_agent, packageZIP) => {
     let user_agent_hash = md5(user_agent);
-    packageZIP = `/home/dingle/browserless/${packageZIP}`
+    // packageZIP = `/home/white/browserless/${packageZIP}`
     console.log(user_agent_hash)
-    //upload status(success :=1, failiure :=-10)
-    APIPACKAGE = `${PROTOCOL}://${SERVERIP}/worker/uploadstatus/`
-    let post_data = {
-        'url_hash': url_hash, 'user_agent_hash': user_agent_hash, 'status': 1,
-        'user_agent': user_agent, 'uname': 'snx', 'password': 'top4glory'
-    }
-    // response = requests.post(APIPACKAGE, files = files, data = post_data, verify = False)
 
-    console.log('uploading...');
-    let process = spawn(`'python ./upload.py "${url_hash}" "${user_agent}" "${user_agent_hash}" "${packageZIP}" >> log.txt'`); 
-    // let process = spawn('python',["./upload.py", url_hash, user_agent, user_agent_hash, packageZIP] ); 
-    process.stdout.on('data', function(data) { 
-        console.log('uploaded', data.toString()); 
-    } ) 
+    let options = {
+        mode: 'text',
+        pythonPath: '/usr/bin/python',
+        pythonOptions: ['-u'], // get print results in real-time
+        scriptPath: __dirname + '',
+        args: [url_hash, user_agent, user_agent_hash, packageZIP]
+    };
+        
+    PythonShell.run('upload.py', options, function (err, results) {
+        if (err) throw err;
+        // results is an array consisting of messages collected during execution
+        console.log('results: %j', results);
+    });
+
+
     // let formData = {
     //     url_hash: url_hash,
     //     user_agent_hash: user_agent_hash,

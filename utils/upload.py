@@ -10,7 +10,7 @@ parser=argparse.ArgumentParser()
 parser.add_argument('url_hash',help='provide url hash')
 parser.add_argument('user_agent',help='provide user agent')
 parser.add_argument('user_agent_hash',help='provide inputfile')
-parser.add_argument('file',help='provide inputfile')
+parser.add_argument('--file',help='provide inputfile')
 
 args=parser.parse_args()
 
@@ -23,8 +23,6 @@ SERVERIP = '10.0.8.79'
 
 AUTH = {'uname': 'snx', 'password': 'top4glory'}
 APIPACKAGE = '{1}://{0}/worker/uploadstatus/'.format(SERVERIP, PROTOCOL)
-
-print 'Hi'
 
 if file_path:
     try:

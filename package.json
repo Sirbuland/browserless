@@ -9,6 +9,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "async-polling": "^0.2.1",
     "body-parser": "^1.18.3",
     "crypto-js": "^3.1.9-1",
     "curl-request": "^1.1.1",
@@ -20,6 +21,7 @@
     "mongoose": "^5.2.6",
     "nodejs-base64": "^1.0.3",
     "puppeteer": "^1.8.0",
+    "python-shell": "^1.0.4",
     "request": "^2.88.0",
     "url-parse": "^1.4.3",
     "yargs": "^12.0.2",

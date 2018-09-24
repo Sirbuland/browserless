@@ -13,15 +13,15 @@ let { getURL, urlHandler } = require('./utils/utils');
 
 let counter = 1;
 
-// while (counter < 3) {
-//   getURL();
-//   // console.log(counter);
-//   counter++;
-// }
+while (counter < 12) {
+  getURL();
+  // console.log(counter);
+  counter++;
+}
 
 
-getURL();
-// urlHandler('http://meridavai.net', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/70.0.3508.0 Safari/537.36');
+// getURL();
+// urlHandler('http://www.folkd.com/page/submit.html', 'Mozilla/5.0 (Windows NT 8.0; WOW64; rv:50.1) Gecko/20100101 Firefox/50.1');
 
 
 
