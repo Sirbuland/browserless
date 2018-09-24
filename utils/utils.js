@@ -113,7 +113,7 @@ const uploadData = (url_hash, user_agent) => {
         args: [url_hash, user_agent, user_agent_hash]
     };
         
-    PythonShell.run('upload.py', options, function (err, results) {
+    PythonShell.run('uploadData.py', options, function (err, results) {
         if (err) throw err;
         // results is an array consisting of messages collected during execution
         console.log('results: %j', results);
@@ -134,7 +134,7 @@ const uploadZIP = (url_hash, user_agent, packageZIP) => {
         args: [url_hash, user_agent, user_agent_hash, packageZIP]
     };
         
-    PythonShell.run('upload.py', options, function (err, results) {
+    PythonShell.run('uploadZIP.py', options, function (err, results) {
         if (err) throw err;
         // results is an array consisting of messages collected during execution
         console.log('results: %j', results);
