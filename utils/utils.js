@@ -124,7 +124,7 @@ const uploadData = (url_hash, user_agent) => {
 const uploadZIP = (url_hash, user_agent, packageZIP) => {
     let user_agent_hash = md5(user_agent);
     // packageZIP = `/home/white/browserless/${packageZIP}`
-    console.log(user_agent_hash)
+    // console.log(user_agent_hash)
 
     let options = {
         mode: 'text',
@@ -193,12 +193,16 @@ const uploadZIP = (url_hash, user_agent, packageZIP) => {
 }
 
 async function downloadFavicon(url, faviconPath) {
-    const browser = await puppeteer.launch();
+    const browser = await puppeteer.launch({
+        ignoreHTTPSErrors: true,
+        args: ["--disable-client-side-phishing-detection", "--safebrowsing-disable-download-protection", "--safebrowsing-manual-download-blacklist"]
+      });
     const page = await browser.newPage();
     let isHTML = false;
+    let url_hash = md5(url);
     page.on("response", async (response) => {
         contentType = response._headers['content-type'];
-        // console.log(contentType, response.url);
+        // console.log(contentType, response._url);
         if (contentType) {
             if (contentType.match(/text\/html/)) {
                 console.log(response._status);
@@ -206,15 +210,17 @@ async function downloadFavicon(url, faviconPath) {
             }
         }
     });
-    let viewSource = await page.goto(url);
-
-    if (!isHTML) {
+    let viewSource = await page.goto(url, {waitUntil: 'networkidle2'}).catch(e => {
+        (error = console.log('Error: ', e.message));
+    });
+    
+    if (!isHTML && (viewSource !== undefined)) {
         console.log('Favicon URL: ', url);
         mkdirp(`${faviconPath}`, function (err) {
             if (err) console.error(err)
             // console.log(`Icons director created at: ${faviconPath}`)
         });
-        fs.writeFile(faviconPath + `\/${md5(url)}`, await viewSource.buffer(), function (err) {
+        fs.writeFile(faviconPath + `\/${url_hash}`, await viewSource.buffer(), function (err) {
             if (err) {
                 return console.log(err);
             }

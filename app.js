@@ -13,19 +13,20 @@ let { getURL, urlHandler } = require('./utils/utils');
 
 let counter = 1;
 
-// while (counter < 11) {
-//   getURL();
-//   // console.log(counter);
-//   counter++;
-// }
+while (counter < 11) {
+  getURL();
+  // console.log(counter);
+  counter++;
+}
 
 
-getURL();
+// getURL();
 // urlHandler('http://www.folkd.com/page/submit.html', 'Mozilla/5.0 (Windows NT 8.0; WOW64; rv:50.1) Gecko/20100101 Firefox/50.1');
 
+// urlHandler('http://clymer.altervista.org/favicon.ico', 'Mozilla/5.0 (Windows NT 8.0; WOW64; rv:50.1) Gecko/20100101 Firefox/50.1');
 
 
-
+// urlHandler('http://klcp319.com/kuaiLeCPCLoginWeb/images/CN/kuaiLeCPC/pc/bitbug_favicon.ico', 'Mozilla/5.0 (Windows NT 8.0; WOW64; rv:50.1) Gecko/20100101 Firefox/50.1');
 
 
 
