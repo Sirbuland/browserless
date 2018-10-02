@@ -13,9 +13,21 @@ const zipper = require('zip-local');
 const spawn = require("child_process").spawn; 
 const {PythonShell} = require('python-shell');
 
-
-
 let { urlPackage } = require('../models/urlPackage');
+
+const mysql = require('mysql');
+
+const con = mysql.createConnection({
+  host: "localhost",
+  user: "root",
+  password: "itistemp...",
+  database : 'headless'
+});
+
+con.connect(function(err) {
+	if (err) throw err
+	
+});
 
 PROTOCOL = 'https';
 SERVERIP = '10.0.8.79';
@@ -72,11 +84,11 @@ async function urlHandler(url, user_agent) {
     let STATUS_U = 0;
     let STATUS_D = 0;
     if (url === origin) {
-        STATUS_D = await parsePage(originPath, originFaviconPath, url_hash, origin, origin, STATUS_D, user_agent, protocol);
+        STATUS_D = await parsePage(originPath, originFaviconPath, url_hash, origin, origin, STATUS_D, user_agent, protocol, url_hash);
         STATUS_U = STATUS_D;
     } else {
-        STATUS_U = await parsePage(urlPath, urlFaviconPath, url_hash, url, origin, STATUS_U, user_agent, protocol)
-        STATUS_D = await parsePage(originPath, originFaviconPath, url_hash, origin, origin, STATUS_D, user_agent, protocol);
+        STATUS_U = await parsePage(urlPath, urlFaviconPath, url_hash, url, origin, STATUS_U, user_agent, protocol, url_hash)
+        STATUS_D = await parsePage(originPath, originFaviconPath, url_hash, origin, origin, STATUS_D, user_agent, protocol, url_hash);
     }
 
     console.log(`Browser Closed Successfully. Domain Status: ${STATUS_D} URL Status: ${STATUS_U}`);
@@ -101,6 +113,15 @@ async function urlHandler(url, user_agent) {
     //     return response;
     // }, 5000);
 }
+
+function saveURLData(url_hash, url_origin_hash, url_base64, page_title, isHtml) {
+  
+        let sql = `INSERT INTO package_features (url_hash, url_origin_hash, url_base64, page_title, isHtml) VALUES ('${url_hash}', '${url_origin_hash}', '${url_base64}', '${page_title}', ${isHtml})`;
+        con.query(sql, function (err, result) {
+            if (err) throw err;
+            console.log("1 record inserted");
+        });
+};
 
 const uploadData = (url_hash, user_agent) => {
     let user_agent_hash = md5(user_agent);
@@ -233,7 +254,8 @@ async function downloadFavicon(url, faviconPath) {
     });
 }
 
-async function handleCURL(path, url_hash, url_base64, url) {
+async function handleCURL(path, url_hash, url_base64, url, url_origin_hash) {
+    let url_md5 = md5(url);
     var curl = new Curl();
 
     curl.setOpt(Curl.option.URL, url);
@@ -246,6 +268,7 @@ async function handleCURL(path, url_hash, url_base64, url) {
         console.info(body.length);
         if (statusCode !== 403 || statusCode !== 404 || statusCode !== 500 || statusCode !== 501 || statusCode !== 502 || statusCode !== 503 || statusCode !== 504) {
             await promisify(fs.writeFile)(path + `\/${url_hash}`, body);
+            saveURLData(url_md5, url_origin_hash, url_base64, 'blank', 1);
         } else {
             return new Promise((resolve, reject) => {
                 resolve(1);
@@ -299,18 +322,22 @@ async function handleCURL(path, url_hash, url_base64, url) {
     // }
 }
 
-async function parsePage(path, faviconPath, url_hash, url, origin, STATUS, user_agent, protocol) {
+async function parsePage(path, faviconPath, url_hash, url, origin, STATUS, user_agent, protocol, url_origin_hash) {
     let url_base64 = base64encode(url);
     let isHTML = false;
     let page_res = false;
     let result = '';
     let page_title = 'blank';
     let html = '';
-    let file_hash = '';
+    let url_md5 = md5(url);
 
 
     const browser = await puppeteer.launch();
     const page = await browser.newPage();
+
+    await page.setJavaScriptEnabled(false)
+    // await page.setRequestInterceptionEnabled(true)
+    // page.on('request', intercepted => intercepted.continue())
 
     page.on("response", async (response) => {
         // console.log(response);
@@ -430,10 +457,10 @@ async function parsePage(path, faviconPath, url_hash, url, origin, STATUS, user_
         //     file_hash: file_hash,
         //     dir_path: path
         // });
-        // result = await saveURLData(package);
+        saveURLData(url_md5, url_origin_hash, url_base64, page_title, 0);
 
     } else {
-        STATUS = await handleCURL(path, url_hash, url_base64, url).catch((e) => {
+        STATUS = await handleCURL(path, url_hash, url_base64, url, url_hash).catch((e) => {
             console.log('Curl catch block', e.message);
         });
     }

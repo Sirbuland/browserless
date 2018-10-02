@@ -2,8 +2,8 @@ let AsyncPolling = require('async-polling');
 
 var polling = AsyncPolling(function (end) {
     console.log('triggered');
-
-}, 3000);
+    getURL();
+}, 8000);
  
 polling.on('error', function (error) {
     // The polling encountered an error, handle it here.
@@ -13,4 +13,9 @@ polling.on('result', function (result) {
     polling.run();
 });
  
+polling.run();
+polling.run();
+polling.run();
+polling.run();
+polling.run();
 polling.run();
