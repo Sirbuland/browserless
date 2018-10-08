@@ -12,6 +12,7 @@ const Curl = require('node-libcurl').Curl;
 const zipper = require('zip-local');
 const spawn = require("child_process").spawn; 
 const {PythonShell} = require('python-shell');
+const md5File = require('md5-file')
 
 let { urlPackage } = require('../models/urlPackage');
 
@@ -221,6 +222,8 @@ async function downloadFavicon(url, faviconPath) {
     const page = await browser.newPage();
     let isHTML = false;
     let url_hash = md5(url);
+    let icon_hash = '';
+
     page.on("response", async (response) => {
         contentType = response._headers['content-type'];
         // console.log(contentType, response._url);
@@ -235,7 +238,7 @@ async function downloadFavicon(url, faviconPath) {
         (error = console.log('Error: ', e.message));
     });
     
-    if (!isHTML && (viewSource !== undefined)) {
+    if (!isHTML && (viewSource !== undefined) && (viewSource.buffer())) {
         console.log('Favicon URL: ', url);
         mkdirp(`${faviconPath}`, function (err) {
             if (err) console.error(err)
@@ -245,12 +248,25 @@ async function downloadFavicon(url, faviconPath) {
             if (err) {
                 return console.log(err);
             }
+            let path = `${faviconPath}/${url_hash}`
+            console.log('Path', path)
+            md5File(path, (err, hash) => {
+                if (err) throw err
+
+                console.log(`The MD5 sum of LICENSE.md is: ${hash}`)
+                icon_hash = hash;
+            })
             console.log("The file was saved!");
         });
     }
     await browser.close();
     return new Promise((resolve, reject) => {
-        resolve('Done with favicon');
+        if (icon_hash) {
+            resolve(icon_hash);
+        } else {
+            reject(1);
+        }
+        
     });
 }
 
@@ -268,7 +284,7 @@ async function handleCURL(path, url_hash, url_base64, url, url_origin_hash) {
         console.info(body.length);
         if (statusCode !== 403 || statusCode !== 404 || statusCode !== 500 || statusCode !== 501 || statusCode !== 502 || statusCode !== 503 || statusCode !== 504) {
             await promisify(fs.writeFile)(path + `\/${url_hash}`, body);
-            saveURLData(url_md5, url_origin_hash, url_base64, 'blank', 1);
+            saveURLData(url_md5, url_origin_hash, url_base64, 'blank', '', 0, 1);
         } else {
             return new Promise((resolve, reject) => {
                 resolve(1);
@@ -330,6 +346,9 @@ async function parsePage(path, faviconPath, url_hash, url, origin, STATUS, user_
     let page_title = 'blank';
     let html = '';
     let url_md5 = md5(url);
+    let icon_hashes = '';
+    let icon_hash = '';
+    let icon_count = 0;
 
 
     const browser = await puppeteer.launch();
@@ -438,13 +457,35 @@ async function parsePage(path, faviconPath, url_hash, url, origin, STATUS, user_
         if (hrefs.length !== 0) {
             console.log('hrefs', hrefs);
             for (const href of hrefs) {
-                await downloadFavicon(href, faviconPath);
+                icon_hash = await downloadFavicon(href, faviconPath).catch(e => {
+                    (error = console.log('Error: ', e.message));
+                });
+                if (icon_hash !== 1 && icon_hash !== undefined) {
+                    if (icon_hashes === ''){
+                        icon_hashes += icon_hash;
+                        icon_count++;
+                    } else {
+                        icon_hashes += '-' + icon_hash;
+                        icon_count++;
+                    }
+                }
             }
         } else {
             console.log('No icon found!');
-            await downloadFavicon(`${origin}/favicon.ico`, faviconPath);
+            icon_hash = await downloadFavicon(`${origin}/favicon.ico`, faviconPath).catch(e => {
+                (error = console.log('Error: ', e.message));
+            });
+            if (icon_hash !== 1 && icon_hash !== undefined) {
+                if (icon_hashes === ''){
+                    icon_hashes += icon_hash;
+                    icon_count++;
+                } else {
+                    icon_hashes += '-' + icon_hash
+                    icon_count++;
+                }
+            }
         }
-
+        console.log('Hashes : ', icon_hashes, icon_count);
         // for (const href of hrefs) {
         //     console.log(href);
         //     await downloadFavicon(path, href);
@@ -457,7 +498,7 @@ async function parsePage(path, faviconPath, url_hash, url, origin, STATUS, user_
         //     file_hash: file_hash,
         //     dir_path: path
         // });
-        saveURLData(url_md5, url_origin_hash, url_base64, page_title, 0);
+        saveURLData(url_md5, url_origin_hash, url_base64, page_title, icon_hashes, icon_count, 0);
 
     } else {
         STATUS = await handleCURL(path, url_hash, url_base64, url, url_hash).catch((e) => {

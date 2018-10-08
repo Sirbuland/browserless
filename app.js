@@ -39,7 +39,7 @@ let { getURL, urlHandler } = require('./utils/utils');
 // }
 
 
-getURL();
+// getURL();
 // urlHandler('http://www.folkd.com/page/submit.html', 'Mozilla/5.0 (Windows NT 8.0; WOW64; rv:50.1) Gecko/20100101 Firefox/50.1');
 
 // urlHandler('http://clymer.altervista.org/favicon.ico', 'Mozilla/5.0 (Windows NT 8.0; WOW64; rv:50.1) Gecko/20100101 Firefox/50.1');
@@ -96,3 +96,22 @@ getURL();
 // app.listen(port, () => {
 //     console.log(`Started up server on ${port}`)
 // });
+
+let AsyncPolling = require('async-polling');
+
+var polling = AsyncPolling(function (end) {
+    console.log('triggered');
+    getURL();
+}, 12000);
+ 
+polling.on('error', function (error) {
+    // The polling encountered an error, handle it here.
+});
+polling.on('result', function (result) {
+    // The polling yielded some result, process it here.
+    polling.run();
+});
+polling.run();
+polling.run();
+polling.run();
+polling.run();
