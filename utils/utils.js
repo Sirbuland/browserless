@@ -115,9 +115,9 @@ async function urlHandler(url, user_agent) {
     // }, 5000);
 }
 
-function saveURLData(url_hash, url_origin_hash, url_base64, page_title, isHtml) {
+function saveURLData(url_hash, url_origin_hash, url_base64, page_title, favicons, total_favicons, isHtml) {
   
-        let sql = `INSERT INTO package_features (url_hash, url_origin_hash, url_base64, page_title, isHtml) VALUES ('${url_hash}', '${url_origin_hash}', '${url_base64}', '${page_title}', ${isHtml})`;
+        let sql = `INSERT INTO package_features (url_hash, url_origin_hash, url_base64, page_title, favicons, total_favicons, isHtml) VALUES ('${url_hash}', '${url_origin_hash}', '${url_base64}', '${page_title}', '${favicons}', '${total_favicons}', ${isHtml})`;
         con.query(sql, function (err, result) {
             if (err) throw err;
             console.log("1 record inserted");
